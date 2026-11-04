@@ -6,6 +6,9 @@ This is a fork of [deReeperJosh/re_nsyshid](https://github.com/deReeperJosh/re_n
 
 Requires the [Aroma](https://github.com/wiiu-env/Aroma) environment.
 
+> [!IMPORTANT]
+> The web control page currently only works with **LEGO Dimensions**. Skylanders and Disney Infinity figures still have to be loaded from the plugin menu.
+
 > [!WARNING]
 > Early release. The web page has been tested in browsers, but on-console testing is still in progress. Expect rough edges, and please report what you find.
 
