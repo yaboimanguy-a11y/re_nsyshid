@@ -14,5 +14,8 @@ void startWebServer();
 void stopWebServer();
 bool isWebServerRunning();
 
+// One line for the plugin menu: listening + request count, or why it stopped.
+std::string webServerStatus();
+
 // "http://192.168.1.20:8853" when the console has an address, empty otherwise.
 std::string webServerAddress();

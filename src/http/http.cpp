@@ -1,6 +1,8 @@
 
 #include "http.hpp"
 
+#include <algorithm>
+#include <cerrno>
 #include <iterator>
 #include <vector>
 
@@ -22,8 +24,29 @@
 }
 
 void TCPClientStream::send(const void *what, size_t size) {
-    if (::send(mSocket, what, size, MSG_NOSIGNAL) < 0)
-        throw std::runtime_error("TCP send failed");
+    // send() may take only part of the buffer (the Wii U's socket buffers are
+    // small), so keep going until every byte is out. Small chunks keep each
+    // call well inside the buffer.
+    constexpr size_t kChunk = 4096;
+    const auto *bytes       = static_cast<const uint8_t *>(what);
+    size_t sent             = 0;
+    int stalls              = 0;
+
+    while (sent < size) {
+        const size_t chunk = std::min(size - sent, kChunk);
+        const ssize_t n    = ::send(mSocket, bytes + sent, chunk, MSG_NOSIGNAL);
+        if (n < 0) {
+            if ((errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) && ++stalls < 1000) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                continue;
+            }
+            throw std::runtime_error("TCP send failed");
+        }
+        if (n == 0)
+            throw std::runtime_error("TCP send made no progress");
+        stalls = 0;
+        sent += static_cast<size_t>(n);
+    }
 }
 
 size_t TCPClientStream::receive(void *target, size_t max) {
@@ -117,12 +140,15 @@ bool HttpRequest::parse(std::shared_ptr<IClientStream> stream) {
         throw std::runtime_error("request too large");
 
     if (cl > 0) {
-        char *tmp = new char[cl];
-        bzero(tmp, cl);
-        stream->receive(tmp, cl);
-
-        mContent = std::string(tmp, cl);
-        delete[] tmp;
+        // The body can arrive over several reads.
+        mContent.assign(cl, '\0');
+        ssize_t got = 0;
+        while (got < cl) {
+            const size_t n = stream->receive(&mContent[got], cl - got);
+            if (n == 0)
+                throw std::runtime_error("connection closed mid-body");
+            got += static_cast<ssize_t>(n);
+        }
 
 #ifdef TINYHTTP_JSON
         if ((*this)["Content-Type"] == "application/json" || (*this)["Content-Type"].rfind("application/json;", 0) == 0 // some clients gives us extra data like charset
@@ -207,6 +233,7 @@ HttpServer::Processor::Processor(std::shared_ptr<IClientStream> stream, HttpServ
                 continue;
             }
 
+            self->mOwner.mRequestCount++;
             auto res = self->mOwner.processRequest(req.getPath(), req);
             if (res) {
 #ifndef TINYHTTP_ALLOW_KEEPALIVE
@@ -269,7 +296,7 @@ bool HttpServer::Processor::isTimedOut() const noexcept {
 
 void HttpServer::Processor::shutdown() {
 #ifdef TINYHTTP_THREADING
-    std::unique_lock{mShutdownMutex};
+    std::unique_lock lock{mShutdownMutex};
 #endif
 
     mIsAlive = false;
@@ -289,6 +316,7 @@ void HttpServer::Processor::startThread() {
     mWorkThread.reset(new std::thread{[self_ptr]() {
         clientThreadProc(self_ptr);
     }});
+    tinyhttpTuneThread(*mWorkThread);
 }
 
 void HttpServer::cleanupThreadProc() {
@@ -365,15 +393,23 @@ void HttpServer::startListening(uint16_t port) {
             break;
     }
 
-    iRetval = ::listen(mSocket, 3);
+    iRetval = ::listen(mSocket, 8);
     if (iRetval < 0)
         throw std::runtime_error("listen() failed");
+    mListening = true;
 
     printf("Waiting for incoming connections...\n");
     while (mSocket != -1) {
-        auto processor = std::make_shared<Processor>(
-                std::make_shared<TCPClientStream>(TCPClientStream::acceptFrom(mSocket)),
-                *this);
+        auto stream = std::make_shared<TCPClientStream>(TCPClientStream::acceptFrom(mSocket));
+        if (!stream->isOpen()) {
+            // accept() failed: either shutdown() closed the socket, or a
+            // transient error that shouldn't turn into a busy loop.
+            if (mSocket == -1)
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            continue;
+        }
+        auto processor = std::make_shared<Processor>(std::move(stream), *this);
 
 #ifdef TINYHTTP_THREADING
         processor->startThread();
@@ -387,6 +423,7 @@ void HttpServer::startListening(uint16_t port) {
 #endif
     }
 
+    mListening = false;
     puts("Listen loop exited");
 }
 

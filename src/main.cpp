@@ -196,6 +196,7 @@ WUPSConfigAPICallbackStatus ConfigMenuOpenedCallback(WUPSConfigCategoryHandle ro
             webCategory.add(WUPSConfigItemStub::Create(("Open " + address + " on your phone or PC").c_str()));
         }
         webCategory.add(WUPSConfigItemStub::Create("Phone/PC must be on the same Wi-Fi as the Wii U"));
+        webCategory.add(WUPSConfigItemStub::Create(("Server: " + webServerStatus()).c_str()));
         root.add(std::move(webCategory));
     } catch (std::exception &e) {
         DEBUG_FUNCTION_LINE_ERR("Creating config menu failed: %s", e.what());

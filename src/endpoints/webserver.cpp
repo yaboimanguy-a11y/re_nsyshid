@@ -26,6 +26,8 @@ extern "C" const uint8_t toypad_html_end[];
 // constructor starts) is created when a game starts and dropped when it ends.
 static std::mutex sServerMutex;
 static HttpServer *sServer = nullptr;
+// Why the last server stopped on its own, shown in the plugin menu.
+static std::string sLastError;
 
 static void registerRoutes(HttpServer &server) {
     // The control page. Open http://<console IP>:8853 in any browser on the same network.
@@ -53,6 +55,8 @@ static void serverThread(HttpServer *server) {
         server->startListening(RE_NSYSHID_WEB_PORT);
     } catch (std::exception &e) {
         DEBUG_FUNCTION_LINE_ERR("Web server stopped with an exception: %s", e.what());
+        std::lock_guard lock(sServerMutex);
+        sLastError = e.what();
     }
 
     {
@@ -77,15 +81,17 @@ void startWebServer() {
         auto *server = new HttpServer();
         registerRoutes(*server);
 
+        sLastError.clear();
         std::thread thread(serverThread, server);
-        auto handle = (OSThread *) thread.native_handle();
-        OSSetThreadName(handle, "re_nsyshid_http_thread");
-        // Keep it off the cores the game leans on hardest.
-        OSSetThreadAffinity(handle, OS_THREAD_ATTRIB_AFFINITY_CPU2);
+        OSSetThreadName((OSThread *) thread.native_handle(), "re_nsyshid_http_thread");
+        // Any free core, slightly above the game's default priority: see
+        // tinyhttpTuneThread in http.hpp.
+        tinyhttpTuneThread(thread);
         thread.detach();
         sServer = server;
     } catch (std::exception &e) {
         DEBUG_FUNCTION_LINE_ERR("Could not start the web server: %s", e.what());
+        sLastError = e.what();
     }
 }
 
@@ -98,6 +104,20 @@ void stopWebServer() {
     sServer->shutdown();
     sServer = nullptr;
     DEBUG_FUNCTION_LINE_INFO("Web server stopped");
+}
+
+std::string webServerStatus() {
+    std::lock_guard lock(sServerMutex);
+    if (sServer) {
+        if (!sServer->isListening()) {
+            return "Starting (waiting for port " + std::to_string(RE_NSYSHID_WEB_PORT) + ")";
+        }
+        return "Listening, " + std::to_string(sServer->requestCount()) + " requests so far";
+    }
+    if (!sLastError.empty()) {
+        return "Stopped: " + sLastError;
+    }
+    return "Not running (starts when a game or app starts)";
 }
 
 bool isWebServerRunning() {

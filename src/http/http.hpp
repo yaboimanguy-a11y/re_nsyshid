@@ -77,6 +77,20 @@
 #include "../utils/endian.h"
 #include "utils/logger.h"
 
+#include <atomic>
+
+#ifdef __WIIU__
+#include <coreinit/thread.h>
+// Server threads sleep in accept()/recv() almost all the time. Run them one
+// step above a game's default priority (16) so a busy game thread can't keep
+// them from ever answering.
+inline void tinyhttpTuneThread(std::thread &t) {
+    OSSetThreadPriority(reinterpret_cast<OSThread *>(t.native_handle()), 15);
+}
+#else
+inline void tinyhttpTuneThread(std::thread &) {}
+#endif
+
 enum class HttpRequestMethod { GET,
                                POST,
                                PUT,
@@ -469,6 +483,8 @@ class HttpServer {
     MessageBuilder mDefault404Message, mDefault400Message;
     int mSocket                 = -1;
     bool mCleanupThreadShutdown = false;
+    std::atomic<bool> mListening{false};
+    std::atomic<unsigned> mRequestCount{0};
 
     std::shared_ptr<HttpResponse> processRequest(std::string key, const HttpRequest &req) {
         try {
@@ -533,6 +549,10 @@ class HttpServer {
 #endif
 
 public:
+    // True once the server is bound and waiting for connections.
+    bool isListening() const noexcept { return mListening; }
+    // Requests parsed since the server started, for diagnostics.
+    unsigned requestCount() const noexcept { return mRequestCount; }
     HttpServer();
     ~HttpServer() {
         mCleanupThreadShutdown = true;
