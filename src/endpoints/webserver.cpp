@@ -17,8 +17,9 @@
 #include <thread>
 
 // The page itself, embedded from data/toypad.html by the Makefile's bin2o rule.
+// bin2s always emits the start and end labels; the size is their difference.
 extern "C" const uint8_t toypad_html[];
-extern "C" const uint32_t toypad_html_size;
+extern "C" const uint8_t toypad_html_end[];
 
 // One server per running application: Wii U threads do not outlive the
 // application that created them, so the server (and the cleanup thread its
@@ -30,7 +31,7 @@ static void registerRoutes(HttpServer &server) {
     // The control page. Open http://<console IP>:8853 in any browser on the same network.
     server.when("/")->requested([](const HttpRequest &req) {
         HttpResponse res{200, "text/html; charset=utf-8",
-                         std::string(reinterpret_cast<const char *>(toypad_html), toypad_html_size)};
+                         std::string(reinterpret_cast<const char *>(toypad_html), size_t(toypad_html_end - toypad_html))};
         res["Cache-Control"] = "no-cache";
         return res;
     });
