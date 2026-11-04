@@ -1,54 +1,83 @@
-# re_nsyshid
+# re_nsyshid — Web Toy Pad
 
-re_nsyshid is a Wii U Plugin which allows end users to emulate Toys to Life USB peripheral devices such as the Skylander Portal of Power, the Disney Infinity Base and the LEGO Dimensions Toypad.
+Control the emulated **LEGO Dimensions Toy Pad** from your phone or PC while you play on Wii U. Drag figures onto the pad, move them between spaces and lift them off from a web page, without pausing the game to open the plugin menu.
 
-Requires the [Aroma](https://github.com/wiiu-env/Aroma) environment.  
+This is a fork of [deReeperJosh/re_nsyshid](https://github.com/deReeperJosh/re_nsyshid), the Aroma plugin that emulates Toys-to-Life portals (Skylanders Portal of Power, Disney Infinity Base and LEGO Dimensions Toy Pad). Everything the original plugin does still works the same; this fork adds the web control page.
 
-> :warning: This plugin is still a work in progress, and some issues are expected!
+Requires the [Aroma](https://github.com/wiiu-env/Aroma) environment.
 
-The re_nsyshid plugin allows you to toggle the "Emulation Status" on and off - meaning that you can choose to either use your physical USB devices when the Emulation Status is disabled, or when enabled it will send commands to the device you have selected in the plugin config menu.
+> [!WARNING]
+> Early release. The web page has been tested in browsers, but on-console testing is still in progress. Expect rough edges, and please report what you find.
 
-Includes some code repurposed from the [re_nfpii](https://github.com/GaryOderNichts/re_nfpii) plugin, big thank you to [GaryOderNichts](https://github.com/GaryOderNichts) for this!
+## Features
 
-> :warning: It is highly recommended to set your chosen Emulation Status and chosen Emulated Device prior to opening your game, as unexpected errors may occur when trying to toggle this in game.
+- **Drag and drop** figures from your SD card onto any of the 7 Toy Pad spaces, with a mouse or a touchscreen
+- **Move** figures between spaces — the game sees the figure lifted and put down, just like the in-game menu
+- **Lift off** a figure by dragging it off the pad or tapping its ✕
+- **Browse your folders** under `SD:/wiiu/re_nsyshid`, with a filter box for big collections
+- **Favourites** row for the figures you swap most often
+- **Live pad lights** — the page glows in the colours the game is lighting each pad
+- Phone-first layout that also works side by side on a PC
 
-## Usage
+## Install
 
-- Download the [latest release](https://github.com/deReeperJosh/re_nsyshid/releases) or the artifacts of latest nightly build from [here](https://nightly.link/deReeperJosh/re_nsyshid/workflows/build/main/re_nsyshid.zip).
-- Copy the contents of the downloaded *`.zip`* file to your target environment.
-- Copy your NFC Figure dumps to `SD:/wiiu/re_nsyshid`. Subfolders are also supported and can be browsed from the configuration menu.
-- Open the plugin configuration menu with L + Down + SELECT.
-- Enable Emulation, and choose an Emulated Device.
-- Choose a Figure for your chosen device, for example enter Skylander Manager if you chose the Skylander Portal, and choose a Skylander to load in a specific slot.
-- Figures can be quickly removed from slots by hovering over the currently loaded slot and pressing the X button
+1. Download `re_nsyshid-web-toypad-v0.1.zip` from [Releases](../../releases).
+2. Extract it to the root of your SD card. It puts the plugin at `wiiu/environments/aroma/plugins/re_nsyshid.wps`, replacing any existing re_nsyshid.
+3. Copy your LEGO Dimensions figure dumps (`.bin`) to `SD:/wiiu/re_nsyshid/`. Subfolders are fine.
 
-## Web Control Page (control the portal from your phone)
+## Use
 
-re_nsyshid can serve a small web page so you can place, move and remove LEGO Dimensions figures from a phone or PC while you play, without opening the plugin menu.
+1. On the Wii U, open the plugin menu with **L + Down + SELECT**.
+2. Set **Emulation Status** to enabled and **Device to Emulate** to *Emulate Dimensions Toypad*. Do this before starting the game.
+3. Open **Web Control Page**, turn on **Enable Web Control Page**, and note the address shown (for example `http://192.168.1.20:8853`).
+4. Start LEGO Dimensions, then open that address in a browser on a phone or PC connected to the **same Wi-Fi** as the Wii U.
 
-- Open the plugin menu (L + Down + SELECT), go to **Web Control Page** and turn on **Enable Web Control Page**.
-- The same menu shows the address to open, e.g. `http://192.168.1.20:8853`. Your phone or PC must be on the same network as the Wii U.
-- Drag a figure from your `SD:/wiiu/re_nsyshid` folders onto a space on the Toy Pad. On a phone, press and hold a figure for a moment, then drag. You can also tap a figure, then tap a space.
-- Drag a figure between spaces to move it, drag it onto **Drop here to lift off the pad** to remove it, or tap its ✕.
-- Star figures you swap often to keep them in a Favourites row at the top.
+On a phone, press and hold a figure for a moment, then drag it. You can also tap a figure, then tap a space.
 
-The page talks to the plugin over plain HTTP with no password, so only enable it on a network you trust.
+### If the page won't load
 
-## Planned features
+- Try `http://<address>:8853/ping` first — it should show `re_nsyshid`.
+- The server only runs while a game or app is open, not on the Wii U boot screen.
+- Check the **Server:** line in the plugin's Web Control Page menu:
+  - *Listening, 0 requests* — the browser never reached the Wii U. Check the phone isn't on mobile data or a guest network.
+  - *Stopped: …* — shows the error that stopped the server.
 
-In future releases, more USB devices are planned to be supported - such as the Kamen Rider Ride Gate
+> [!NOTE]
+> The page uses plain HTTP with no password. Only enable it on a network you trust.
+
+## Original plugin features
+
+The plugin menu still lets you load figures for all three devices:
+
+- Choose a figure for each slot from **Skylander Manager**, **Infinity Manager** or **Dimensions Manager**.
+- Remove a figure by highlighting its slot and pressing **X**.
+- Toggle **Emulation Status** off to use a real USB portal instead.
+
+It's best to choose the emulation status and device before starting a game; changing them mid-game can cause errors.
 
 ## Building
 
-Building re_nsyshid using the Dockerfile is recommended:
+Building with Docker is recommended. Clone with submodules first:
 
 ```bash
-# Build docker image (only needed once)
-docker build . -t re_nsyshid_builder
-
-# make 
-docker run -it --rm -v ${PWD}:/project re_nsyshid_builder make
-
-# make clean
-docker run -it --rm -v ${PWD}:/project re_nsyshid_builder make clean
+git clone --recursive https://github.com/yaboimanguy-a11y/re_nsyshid.git
 ```
+
+```bash
+docker build . -t re_nsyshid_builder
+```
+
+```bash
+docker run -it --rm -v ${PWD}:/project re_nsyshid_builder make
+```
+
+GitHub Actions also builds the plugin on every push; download it from the run's **Artifacts**.
+
+## Credits
+
+- [deReeperJosh](https://github.com/deReeperJosh) — re_nsyshid, the portal emulation and the original HTTP API this page builds on
+- [GaryOderNichts](https://github.com/GaryOderNichts) — code from [re_nfpii](https://github.com/GaryOderNichts/re_nfpii)
+- [tinyhttp](src/http/README.md) (Apache 2.0) and [MiniJson](https://github.com/zsmj2017/MiniJson) — HTTP server and JSON
+- Web control page by Braden Haney with Claude
+
+Licensed under GPLv2, like the original plugin.
