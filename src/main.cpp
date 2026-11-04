@@ -14,6 +14,7 @@
 #include "config/ConfigItemDimensionsPad.hpp"
 #include "config/ConfigItemSelectInfinity.hpp"
 #include "config/ConfigItemSelectSkylander.hpp"
+#include "endpoints/webserver.h"
 #include "re_nsyshid.h"
 
 #include <forward_list>
@@ -56,6 +57,12 @@ WUPS_USE_STORAGE("re_nsyshid"); // Unique id for the storage api
 
 EmulationStatus sEmulationStatus = EMULATION_STATUS_DEFAULT_VALUE;
 DeviceToEmulate sEmulatedDevice  = EMULATED_DEVICE_DEFAULT_VALUE;
+bool sWebServerEnabled           = ENABLE_WEB_SERVER_DEFAULT_VALUE;
+
+static void webServerEnabledChanged(ConfigItemBoolean *item, bool newValue) {
+    sWebServerEnabled = newValue;
+    WUPSStorageAPI::Store(ENABLE_WEB_SERVER_CONFIG_ID, sWebServerEnabled);
+}
 
 
 void multipleValueItemChanged(ConfigItemMultipleValues *item, uint32_t newValue) {
@@ -177,6 +184,19 @@ WUPSConfigAPICallbackStatus ConfigMenuOpenedCallback(WUPSConfigCategoryHandle ro
         ConfigItemDimensionsPad_AddToCategory(dimensionsCategory.getHandle(), "dimensions_toypad", "Dimensions Toypad", TAG_EMULATION_PATH.c_str(), TAG_EMULATION_PATH.c_str(), dimensionsFigureSelectedCallback);
 
         root.add(std::move(dimensionsCategory));
+
+        auto webCategory = WUPSConfigCategory::Create("Web Control Page");
+        webCategory.add(WUPSConfigItemBoolean::Create(ENABLE_WEB_SERVER_CONFIG_ID, "Enable Web Control Page",
+                                                      ENABLE_WEB_SERVER_DEFAULT_VALUE, sWebServerEnabled,
+                                                      webServerEnabledChanged));
+        const std::string address = webServerAddress();
+        if (address.empty()) {
+            webCategory.add(WUPSConfigItemStub::Create("Not connected to a network"));
+        } else {
+            webCategory.add(WUPSConfigItemStub::Create(("Open " + address + " on your phone or PC").c_str()));
+        }
+        webCategory.add(WUPSConfigItemStub::Create("Phone/PC must be on the same Wi-Fi as the Wii U"));
+        root.add(std::move(webCategory));
     } catch (std::exception &e) {
         DEBUG_FUNCTION_LINE_ERR("Creating config menu failed: %s", e.what());
         return WUPSCONFIG_API_CALLBACK_RESULT_ERROR;
@@ -188,6 +208,12 @@ WUPSConfigAPICallbackStatus ConfigMenuOpenedCallback(WUPSConfigCategoryHandle ro
 void ConfigMenuClosedCallback() {
     DEBUG_FUNCTION_LINE("Saving config of re_nsyshid");
     WUPSStorageAPI::SaveStorage();
+
+    if (sWebServerEnabled) {
+        startWebServer();
+    } else {
+        stopWebServer();
+    }
 }
 
 /**
@@ -204,6 +230,13 @@ INITIALIZE_PLUGIN() {
 
     FSUtils::Initialize();
 
+    WUPSStorageError storageRes;
+    if ((storageRes = WUPSStorageAPI::GetOrStoreDefault(ENABLE_WEB_SERVER_CONFIG_ID, sWebServerEnabled,
+                                                        ENABLE_WEB_SERVER_DEFAULT_VALUE)) != WUPS_STORAGE_ERROR_SUCCESS) {
+        DEBUG_FUNCTION_LINE_ERR("GetOrStoreDefault failed: %s (%d)",
+                                WUPSStorageAPI_GetStatusStr(storageRes), storageRes);
+    }
+
     deinitLogging();
 }
 
@@ -213,6 +246,7 @@ INITIALIZE_PLUGIN() {
 DEINITIALIZE_PLUGIN() {
     // Remove all button combos from this plugin.
     DEBUG_FUNCTION_LINE("DEINITIALIZE_PLUGIN of re_nsyshid!");
+    stopWebServer();
     FSUtils::Finalize();
 }
 
@@ -224,6 +258,10 @@ ON_APPLICATION_START() {
     FSUtils::Initialize();
 
     DEBUG_FUNCTION_LINE("ON_APPLICATION_START of re_nsyshid!");
+
+    if (sWebServerEnabled) {
+        startWebServer();
+    }
 }
 
 /**
@@ -231,6 +269,7 @@ ON_APPLICATION_START() {
  */
 ON_APPLICATION_ENDS() {
     DEBUG_FUNCTION_LINE("ON_APPLICATION_ENDS of re_nsyshid!");
+    stopWebServer();
     ResetClientLibrary();
     deinitLogging();
 }

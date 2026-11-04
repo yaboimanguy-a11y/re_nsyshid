@@ -28,9 +28,9 @@ export VERSION_PATCH	:=	7
 #-------------------------------------------------------------------------------
 TARGET		:=	re_nsyshid
 BUILD		:=	build
-SOURCES		:=	src src/utils src/devices src/config
+SOURCES		:=	src src/utils src/devices src/config src/http src/endpoints src/MiniJson/Source/src
 DATA		:=	data
-INCLUDES	:=	src src/include
+INCLUDES	:=	src src/include src/http src/MiniJson/Source/include
 
 #-------------------------------------------------------------------------------
 # options for code generation
@@ -150,6 +150,14 @@ $(OFILES_SRC)	: $(HFILES_BIN)
 # you need a rule like this for each extension you use as binary data
 #-------------------------------------------------------------------------------
 %.bin.o	%_bin.h :	%.bin
+#-------------------------------------------------------------------------------
+	@echo $(notdir $<)
+	@$(bin2o)
+
+#-------------------------------------------------------------------------------
+# the web control page, served by the plugin (see src/endpoints/webserver.cpp)
+#-------------------------------------------------------------------------------
+%.html.o	%_html.h :	%.html
 #-------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	@$(bin2o)
